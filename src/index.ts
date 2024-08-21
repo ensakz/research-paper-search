@@ -4,7 +4,7 @@ const config = require('./config.json');
 
 const app = express();
 const port = 3000;
-//checking
+
 app.get('/search', async (req: Request, res: Response) => {
     // Ensure the query is a string by checking and assigning a default if necessary
     const query: string = typeof req.query.q === 'string' ? req.query.q : 'genomics';

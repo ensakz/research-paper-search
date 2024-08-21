@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import axios from 'axios';
-const config = require('./config.json');
+import config from './config.json';
 
 const app = express();
 const port = 3000;
@@ -11,7 +11,7 @@ app.get('/search', async (req: Request, res: Response) => {
 
     const baseUrl = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
     const email = config.email;  // Replace with your actual email
-    const apiKey = config.api_key;  // Replace with your actual API key
+    const apiKey = config.apiKey;  // Replace with your actual API key
 
     try {
         // Searching in PMC for full text documents

@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import axios from 'axios';
+const config = require('./config.json');
 
 const app = express();
 const port = 3000;
@@ -9,8 +10,8 @@ app.get('/search', async (req: Request, res: Response) => {
     const query: string = typeof req.query.q === 'string' ? req.query.q : 'genomics';
 
     const baseUrl = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
-    const email = 'sanhar.naizabekov@gmail.com';  // Replace with your actual email
-    const apiKey = '';  // Replace with your actual API key
+    const email = config.email;  // Replace with your actual email
+    const apiKey = config.api_key;  // Replace with your actual API key
 
     try {
         // Searching in PMC for full text documents

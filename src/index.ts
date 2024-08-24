@@ -1,9 +1,13 @@
+// Import necessary libraries
 import express, { Request, Response } from 'express';
 import axios from 'axios';
+import xml2js from 'xml2js';
 import config from './config.json';
 
+// Initialize the express application
 const app = express();
 const port = 3000;
+const parser = new xml2js.Parser({ explicitArray: false });
 
 interface ArticleId {
     idtype: string;
@@ -14,6 +18,7 @@ interface Article {
     uid: string;
     title: string;
     articleids: ArticleId[];
+    fullText: string;
 }
 
 interface SummaryData {
@@ -28,58 +33,71 @@ interface SearchData {
     };
 }
 
+// Update these interfaces to better match the PubMed XML structure:
+interface MedlineCitation {
+    PMID: string;
+    Article: {
+        ArticleTitle: string;
+        Abstract?: {
+            AbstractText: string | string[];
+        };
+    };
+}
+
+interface PubmedArticle {
+    MedlineCitation: MedlineCitation;
+}
+
+interface PubmedArticleSet {
+    PubmedArticle: PubmedArticle | PubmedArticle[];
+}
+
+// Add this new interface for the structured response:
+interface StructuredArticle {
+    id: string;
+    title: string;
+    abstract: string;
+}
+
+
 app.get('/search', async (req: Request, res: Response) => {
     const query: string = typeof req.query.q === 'string' ? req.query.q : 'genomics';
     const baseUrl = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
-    const email = config.email;  // Replace with your actual email
-    const apiKey = config.apiKey;  // Replace with your actual API key
+    const email = config.email;
+    const apiKey = config.apiKey;
 
     try {
-        const searchUrl = `${baseUrl}/esearch.fcgi?db=pmc&term=${encodeURIComponent(query)}[title/abstract]&retmode=json&email=${email}&api_key=${apiKey}`;
-        const searchResponse = await axios.get(searchUrl);
-        const searchData: SearchData = searchResponse.data;
+        // Search for articles by query and retrieve IDs
+        const searchUrl = `${baseUrl}/esearch.fcgi?db=pmc&term=${encodeURIComponent(query)}&retmode=json&email=${email}&api_key=${apiKey}`;
+        const searchResponse = await axios.get<SearchData>(searchUrl);
+        const ids = searchResponse.data.esearchresult.idlist;
 
-        if (!searchData.esearchresult.idlist.length) {
-            res.status(404).send('No full-text articles found.');
-            return;
+        if (ids.length === 0) {
+            return res.status(404).send('No articles found.');
         }
 
-        const ids = searchData.esearchresult.idlist.join(',');
-        const summaryUrl = `${baseUrl}/esummary.fcgi?db=pmc&id=${ids}&retmode=json&email=${email}&api_key=${apiKey}`;
-        const summaryResponse = await axios.get(summaryUrl);
-        const summaryData: SummaryData = summaryResponse.data;
+        // Fetch the details of articles using efetch
+        const fetchUrl = `${baseUrl}/efetch.fcgi?db=pmc&id=${ids.join(',')}&retmode=xml&email=${email}&api_key=${apiKey}`;
+        const fetchResponse = await axios.get(fetchUrl);
+        
+        const fetchResult = await parser.parseStringPromise(fetchResponse.data);
 
-        // Extracting link and reference information
-        const articles = Object.values(summaryData.result).map((article: Article) => {
-            // Debugging: log article to see the structure
-            console.log(article);
-        
-            // Check if articleids is defined and is an array
-            if (!Array.isArray(article.articleids)) {
-                console.log('No articleids found for article with UID:', article.uid);
-                return {
-                    title: article.title,
-                    pmcUrl: `https://www.ncbi.nlm.nih.gov/pmc/articles/${article.uid}/`,
-                    doiUrl: null // Default to null if articleids is not an array
-                };
-            }
-        
+        // Map articles to a structured response
+        const articles = fetchResult.PubmedArticleSet.PubmedArticle.map((article: PubmedArticle) => {
             return {
-                title: article.title,
-                pmcUrl: `https://www.ncbi.nlm.nih.gov/pmc/articles/${article.uid}/`,
-                doiUrl: article.articleids.find(id => id.idtype === 'doi')?.value ?? null
+                id: article.MedlineCitation.PMID,
+                title: article.MedlineCitation.Article.ArticleTitle || 'No title available',
+                abstract: article.MedlineCitation.Article.Abstract?.AbstractText || 'No abstract available'
             };
         });
 
         res.json(articles);
-        res.send(summaryData);
-
     } catch (error) {
-        console.error('Failed to fetch data from PMC:', error);
-        res.status(500).send('Failed to fetch data from PMC');
+        console.error('Error fetching data:', error);
+        res.status(500).send('Internal Server Error');
     }
 });
-
+// Start the server
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });

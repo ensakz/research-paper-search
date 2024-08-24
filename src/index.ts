@@ -59,7 +59,6 @@ interface StructuredArticle {
     abstract: string;
 }
 
-
 app.get('/search', async (req: Request, res: Response) => {
     const query: string = typeof req.query.q === 'string' ? req.query.q : 'genomics';
     const baseUrl = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
@@ -68,7 +67,7 @@ app.get('/search', async (req: Request, res: Response) => {
 
     try {
         // Search for articles by query and retrieve IDs
-        const searchUrl = `${baseUrl}/esearch.fcgi?db=pmc&term=${encodeURIComponent(query)}&retmode=json&email=${email}&api_key=${apiKey}`;
+        const searchUrl = `${baseUrl}/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmode=json&email=${email}&api_key=${apiKey}`;
         const searchResponse = await axios.get<SearchData>(searchUrl);
         const ids = searchResponse.data.esearchresult.idlist;
 
@@ -77,7 +76,7 @@ app.get('/search', async (req: Request, res: Response) => {
         }
 
         // Fetch the details of articles using efetch
-        const fetchUrl = `${baseUrl}/efetch.fcgi?db=pmc&id=${ids.join(',')}&retmode=xml&email=${email}&api_key=${apiKey}`;
+        const fetchUrl = `${baseUrl}/efetch.fcgi?db=pubmed&id=${ids.join(',')}&retmode=xml&email=${email}&api_key=${apiKey}`;
         const fetchResponse = await axios.get(fetchUrl);
         
         const fetchResult = await parser.parseStringPromise(fetchResponse.data);
@@ -97,6 +96,7 @@ app.get('/search', async (req: Request, res: Response) => {
         res.status(500).send('Internal Server Error');
     }
 });
+
 // Start the server
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);

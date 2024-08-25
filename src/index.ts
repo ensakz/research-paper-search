@@ -1,103 +1,51 @@
-// Import necessary libraries
 import express, { Request, Response } from 'express';
 import axios from 'axios';
-import xml2js from 'xml2js';
-import config from './config.json';
+const config = require('./config.json');
 
-// Initialize the express application
 const app = express();
 const port = 3000;
-const parser = new xml2js.Parser({ explicitArray: false });
-
-interface ArticleId {
-    idtype: string;
-    value: string;
-}
-
-interface Article {
-    uid: string;
-    title: string;
-    articleids: ArticleId[];
-    fullText: string;
-}
-
-interface SummaryData {
-    result: {
-        [key: string]: Article;
-    };
-}
-
-interface SearchData {
-    esearchresult: {
-        idlist: string[];
-    };
-}
-
-// Update these interfaces to better match the PubMed XML structure:
-interface MedlineCitation {
-    PMID: string;
-    Article: {
-        ArticleTitle: string;
-        Abstract?: {
-            AbstractText: string | string[];
-        };
-    };
-}
-
-interface PubmedArticle {
-    MedlineCitation: MedlineCitation;
-}
-
-interface PubmedArticleSet {
-    PubmedArticle: PubmedArticle | PubmedArticle[];
-}
-
-// Add this new interface for the structured response:
-interface StructuredArticle {
-    id: string;
-    title: string;
-    abstract: string;
-}
 
 app.get('/search', async (req: Request, res: Response) => {
     const query: string = typeof req.query.q === 'string' ? req.query.q : 'genomics';
+    const sort: string = typeof req.query.sort === 'string' ? req.query.sort : 'relevance';
+    const retmax: number = typeof req.query.retmax === 'string' ? parseInt(req.query.retmax) : 20;
+
     const baseUrl = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
     const email = config.email;
     const apiKey = config.apiKey;
 
     try {
-        // Search for articles by query and retrieve IDs
-        const searchUrl = `${baseUrl}/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmode=json&email=${email}&api_key=${apiKey}`;
-        const searchResponse = await axios.get<SearchData>(searchUrl);
-        const ids = searchResponse.data.esearchresult.idlist;
-
-        if (ids.length === 0) {
-            return res.status(404).send('No articles found.');
+        // Determine sort parameter
+        let sortParam = '';
+        if (sort === 'date') {
+            sortParam = '&sort=pub+date';
+        } else if (sort === 'relevance') {
+            sortParam = '&sort=relevance';
         }
 
-        // Fetch the details of articles using efetch
-        const fetchUrl = `${baseUrl}/efetch.fcgi?db=pubmed&id=${ids.join(',')}&retmode=xml&email=${email}&api_key=${apiKey}`;
-        const fetchResponse = await axios.get(fetchUrl);
-        
-        const fetchResult = await parser.parseStringPromise(fetchResponse.data);
+        // Searching in PMC for full text documents
+        const searchUrl = `${baseUrl}/esearch.fcgi?db=pmc&term=${encodeURIComponent(query)}[title/abstract]${sortParam}&retmode=json&retmax=${retmax}&email=${email}&api_key=${apiKey}`;
+        const searchResponse = await axios.get(searchUrl);
+        const searchData = searchResponse.data;
 
-        // Map articles to a structured response
-        const articles = fetchResult.PubmedArticleSet.PubmedArticle.map((article: PubmedArticle) => {
-            return {
-                id: article.MedlineCitation.PMID,
-                title: article.MedlineCitation.Article.ArticleTitle || 'No title available',
-                abstract: article.MedlineCitation.Article.Abstract?.AbstractText || 'No abstract available'
-            };
-        });
+        if (!searchData.esearchresult.idlist.length) {
+            res.status(404).send('No full-text articles found.');
+            return;
+        }
 
-        res.json(articles);
+        const ids = searchData.esearchresult.idlist.join(',');
+        const summaryUrl = `${baseUrl}/efetch.fcgi?db=pmc&id=${ids}&rettype=abstract&retmode=xml&email=${email}&api_key=${apiKey}`;
+        const summaryResponse = await axios.get(summaryUrl);
+        const summaryData = summaryResponse.data;
+
+        // Sending XML data or converting XML to text/JSON could be handled here
+        res.send(summaryData);
     } catch (error) {
-        console.error('Error fetching data:', error);
-        res.status(500).send('Internal Server Error');
+        console.error('Failed to fetch data from PMC:', error);
+        res.status(500).send('Failed to fetch data from PMC');
     }
 });
 
-// Start the server
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });

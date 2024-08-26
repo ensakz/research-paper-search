@@ -1,12 +1,16 @@
 import express, { Request, Response } from 'express';
 import axios from 'axios';
-const config = require('./config.json');
+import config from './config.json';
 
 const app = express();
 const port = 3000;
 
+interface ArticleSummary {
+    [key: string]: string | object;  // More specific typing can be applied based on the expected structure
+}
+
 app.get('/search', async (req: Request, res: Response) => {
-    const query: string = typeof req.query.q === 'string' ? req.query.q : 'genomics';
+    const query: string = req.query.q ? req.query.q.toString() : 'genomics';
     const sort: string = typeof req.query.sort === 'string' ? req.query.sort : 'relevance';
     const retmax: number = typeof req.query.retmax === 'string' ? parseInt(req.query.retmax) : 20;
 
@@ -14,32 +18,47 @@ app.get('/search', async (req: Request, res: Response) => {
     const email = config.email;
     const apiKey = config.apiKey;
 
+    const articleSummaries: ArticleSummary = {};
+    //const ids = ['PMC11343250', 'PMC1790863'];
+
+    // Determine sort parameter
+    let sortParam = '';
+    if (sort === 'date') {
+        sortParam = '&sort=pub+date';
+    } else if (sort === 'relevance') {
+        sortParam = '&sort=relevance';
+    }
+
+    let searchData;
+
+    try{
+    // Searching in PMC for full text documents
+    const searchUrl = `${baseUrl}/esearch.fcgi?db=pmc&term=${encodeURIComponent(query)}[title/abstract]${sortParam}&retmode=json&retmax=${retmax}&email=${email}&api_key=${apiKey}`;
+    const searchResponse = await axios.get(searchUrl);
+    searchData = searchResponse.data;
+    if (!searchData.esearchresult.idlist.length) {
+        res.status(404).send('No full-text articles found.');
+        return;
+    }} catch (error) {
+        console.error('Failed to retrieve ids from esearch:', error);
+        res.status(500).send('Failed to retrieve ids from esearch');
+    }
+
+    const ids = searchData.esearchresult.idlist
+
     try {
-        // Determine sort parameter
-        let sortParam = '';
-        if (sort === 'date') {
-            sortParam = '&sort=pub+date';
-        } else if (sort === 'relevance') {
-            sortParam = '&sort=relevance';
+        for (const id of ids) {
+            const summaryUrl = `https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json/PMC${id}/ascii`;
+            try {
+                const summaryResponse = await axios.get(summaryUrl);
+                articleSummaries[id] = summaryResponse.data;  // Store each summary indexed by ID
+            } catch (error) {
+                console.error(`Failed to fetch summary for ID ${id}:`, error);
+                articleSummaries[id] = { error: 'Failed to fetch summary' };  // Handle and store errors
+            }
         }
-
-        // Searching in PMC for full text documents
-        const searchUrl = `${baseUrl}/esearch.fcgi?db=pmc&term=${encodeURIComponent(query)}[title/abstract]${sortParam}&retmode=json&retmax=${retmax}&email=${email}&api_key=${apiKey}`;
-        const searchResponse = await axios.get(searchUrl);
-        const searchData = searchResponse.data;
-
-        if (!searchData.esearchresult.idlist.length) {
-            res.status(404).send('No full-text articles found.');
-            return;
-        }
-
-        const ids = searchData.esearchresult.idlist.join(',');
-        const summaryUrl = `${baseUrl}/efetch.fcgi?db=pmc&id=${ids}&rettype=abstract&retmode=xml&email=${email}&api_key=${apiKey}`;
-        const summaryResponse = await axios.get(summaryUrl);
-        const summaryData = summaryResponse.data;
-
-        // Sending XML data or converting XML to text/JSON could be handled here
-        res.send(summaryData);
+        res.send(articleSummaries)
+        //res.send(articleSummaries['11343250']);  // Send all collected summaries as a JSON response
     } catch (error) {
         console.error('Failed to fetch data from PMC:', error);
         res.status(500).send('Failed to fetch data from PMC');

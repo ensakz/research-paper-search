@@ -1,6 +1,10 @@
 import express, { Request, Response } from 'express';
 import axios from 'axios';
 import config from './config.json';
+import gemini from "./gemini"
+import run from './gemini';
+import test from 'node:test';
+import { text } from 'stream/consumers';
 
 const app = express();
 const port = 3000;
@@ -8,6 +12,17 @@ const port = 3000;
 interface ArticleSummary {
     [key: string]: string | object;  // More specific typing can be applied based on the expected structure
 }
+
+app.get('/gemini', (req, res) => {
+    try{
+        const userQuery = req.query.q ? req.query.q.toString() : '';
+        const geminiResponse = run(userQuery);
+        geminiResponse.then((text)=> {res.send(text);});
+    }
+    catch(err) {
+        console.error("Error in Gemini task:", err);
+        res.status(500).send("An error occurred on the server.");
+    }});
 
 app.get('/search', async (req: Request, res: Response) => {
     const query: string = req.query.q ? req.query.q.toString() : 'genomics';

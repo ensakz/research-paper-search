@@ -13,6 +13,8 @@ interface ArticleSummary {
     [key: string]: string | object;  // More specific typing can be applied based on the expected structure
 }
 
+let geminiResponse: Promise<string> | null = null
+
 app.get('/gemini', (req, res) => {
     try{
         const userQuery = req.query.q ? req.query.q.toString() : '';
@@ -48,12 +50,16 @@ app.get('/search', async (req: Request, res: Response) => {
 
     try{
     // Searching in PMC for full text documents
-    const searchUrl = `${baseUrl}/esearch.fcgi?db=pmc&term=${encodeURIComponent(query)}[title/abstract]${sortParam}&retmode=json&retmax=${retmax}&email=${email}&api_key=${apiKey}`;
+    if (geminiResponse) {
+        const geminiKeyWords = await geminiResponse;
+    const searchUrl = `${baseUrl}/esearch.fcgi?db=pmc&term=${encodeURIComponent(geminiKeyWords)}[title/abstract]${sortParam}&retmode=json&retmax=${retmax}&email=${email}&api_key=${apiKey}`;
     const searchResponse = await axios.get(searchUrl);
     searchData = searchResponse.data;
     if (!searchData.esearchresult.idlist.length) {
         res.status(404).send('No full-text articles found.');
-        return;
+        return;} else {
+            res.status(400).send('No query processed by Gemini yet. Make a request to /gemini first.');
+        }
     }} catch (error) {
         console.error('Failed to retrieve ids from esearch:', error);
         res.status(500).send('Failed to retrieve ids from esearch');

@@ -24,3 +24,27 @@ export default async function run(userQuery: string): Promise<string> {
     }
   }
   
+  export async function summarizeArticles(userQuery: string, articleSummaries: any): Promise<string> {
+    const prompt = `Based on the following article summaries, please answer this question: "${userQuery}". 
+    Provide a comprehensive answer using information from the articles. If the information about userQuery
+    Include proper citations using the PMC ID numbers as references (e.g., [PMC1234567]). 
+    If there are conflicting findings or perspectives among the articles, please mention them. 
+    If certain information is not available in the provided summaries, state that clearly. 
+    Aim for a balanced, scientific response that accurately reflects the content of the articles.
+
+    Article Summaries:
+    ${JSON.stringify(articleSummaries, null, 2)}
+
+    Please format your response with clear paragraphs, and a conclusion summarizing the key points.`;
+
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        console.log(text);
+        return text;
+    } catch (err) {
+        console.error("Failed to generate summary:", err);
+        return Promise.reject("Failed to summarize articles.");
+    }
+}

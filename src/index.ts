@@ -1,7 +1,8 @@
 import express, { Request, Response } from 'express';
 import axios from 'axios';
 import config from './config.json';
-import run, {summarizeArticles} from './gemini'; 
+import run, {summarizeArticles} from './gemini';
+import { parseStringPromise } from 'xml2js';
 
 const app = express();
 const port = 3000;
@@ -55,6 +56,35 @@ async function fetchArticleSummaries(ids: string[]): Promise<ArticleSummary> {
     return articleSummaries;
 }
 
+async function fetchFigures(ids: string[], maxFigures: number = 5): Promise<any> {
+    const figures: any = {};
+
+    for (const id of ids) {
+        const articleUrl = `https://www.ncbi.nlm.nih.gov/pmc/articles/PMC${id}/`;
+        try {
+            // First, fetch the article page
+            const response = await axios.get(articleUrl);
+            const htmlContent = response.data;
+
+            // Use a regular expression to find figure image URLs
+            const figureRegex = /<img[^>]+src="([^">]+\/bin\/[^">]+)"[^>]*>/g;
+            let match;
+            const figureUrls = [];
+            while ((match = figureRegex.exec(htmlContent)) !== null && figureUrls.length < maxFigures) {
+                figureUrls.push(match[1]);
+            }
+
+            figures[id] = figureUrls.map(url => `https://www.ncbi.nlm.nih.gov${url}`);
+
+        } catch (error) {
+            console.error(`Failed to fetch figures for ID ${id}:`, error);
+            figures[id] = { error: 'Failed to fetch figures' };
+        }
+    }
+
+    return figures;
+}
+
 app.get('/search', async (req: Request, res: Response) => {
     try {
         const userQuery = req.query.q ? req.query.q.toString() : '';
@@ -70,8 +100,9 @@ app.get('/search', async (req: Request, res: Response) => {
             console.log(ids);
 
             const articleSummaries = await fetchArticleSummaries(ids);
+            const figures = await fetchFigures(ids);
             const summary = await summarizeArticles(userQuery, articleSummaries);
-            res.send({summary});
+            res.send({summary, figures});
 
         } else {
             res.status(404).send('No full-text articles found.');

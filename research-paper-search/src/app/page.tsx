@@ -1,95 +1,83 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+
+import { useState } from 'react';
+import React from 'react';
+
+interface SearchResults {
+  summary: string;
+  figures: Record<string, string[]>;
+  error?: string;
+}
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<SearchResults | null>(null);
+  const [loading, setLoading] = useState(false);
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const data: SearchResults = await response.json();
+      setResults(data);
+    } catch (error) {
+      console.error('Error fetching results:', error);
+      setResults({ error: 'Failed to fetch results', summary: '', figures: {} });
+    }
+    setLoading(false);
+  };
+
+  return (
+    <main className="container mt-4">
+      <h1 className="mb-4">Research Paper Search</h1>
+      <form onSubmit={handleSubmit} className="mb-4">
+        <div className="input-group">
+          <input
+            type="text"
+            className="form-control"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Enter your research question"
+          />
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={loading}
           >
-            <Image
-              className={styles.logo}
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+            {loading ? 'Searching...' : 'Search'}
+          </button>
         </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </form>
+
+      {results && (
+        <div>
+          {results.error ? (
+            <p className="text-danger">{results.error}</p>
+          ) : (
+            <>
+              <h2 className="mb-2">Summary</h2>
+              <div 
+                className="mb-4"
+                dangerouslySetInnerHTML={{ __html: results.summary }}
+              />
+              <h2 className="mb-2">Figures</h2>
+              <div className="row row-cols-2 g-4">
+                {Object.entries(results.figures).map(([id, urls]) => (
+                  urls.map((url, index) => (
+                    <div key={`${id}-${index}`} className="col">
+                      <img src={url} alt={`Figure from PMC${id}`} className="img-fluid" />
+                    </div>
+                  ))
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </main>
   );
 }

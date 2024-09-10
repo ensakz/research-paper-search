@@ -56,7 +56,7 @@ async function fetchArticleSummaries(ids: string[]): Promise<ArticleSummary> {
     return articleSummaries;
 }
 
-async function fetchFigures(ids: string[], maxFigures: number = 2): Promise<any> {
+async function fetchFigures(ids: string[], maxFigures: number = 1): Promise<any> {
     const figures: any = {};
 
     for (const id of ids) {

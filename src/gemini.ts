@@ -42,7 +42,11 @@ export default async function run(userQuery: string): Promise<string> {
         const response = await result.response;
         const text = response.text();
         console.log(text);
-        return text;
+        const processedText = text.replace(/\[PMC(\d+)(?:,\s*PMC(\d+))*\]/g, (match, ...args) => {
+            const ids = args.slice(0, -2).filter(Boolean);
+            return '[' + ids.map(id => `<a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC${id}/">PMC${id}</a>`).join(', ') + ']';
+          });
+        return processedText;
     } catch (err) {
         console.error("Failed to generate summary:", err);
         return Promise.reject("Failed to summarize articles.");

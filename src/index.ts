@@ -62,19 +62,21 @@ async function fetchFigures(ids: string[], maxFigures: number = 1): Promise<any>
     for (const id of ids) {
         const articleUrl = `https://www.ncbi.nlm.nih.gov/pmc/articles/PMC${id}/`;
         try {
-            // First, fetch the article page
             const response = await axios.get(articleUrl);
             const htmlContent = response.data;
 
-            // Use a regular expression to find figure image URLs
-            const figureRegex = /<img[^>]+src="([^">]+\/bin\/[^">]+)"[^>]*>/g;
+            // Use a regular expression to find figure image URLs and their links
+            const figureRegex = /<a[^>]+href="([^"]+\/figure\/[^"]+)"[^>]*>[\s\S]*?<img[^>]+src="([^"]+\/bin\/[^"]+)"[^>]*>/g;
             let match;
-            const figureUrls = [];
-            while ((match = figureRegex.exec(htmlContent)) !== null && figureUrls.length < maxFigures) {
-                figureUrls.push(match[1]);
+            const figureInfo = [];
+            while ((match = figureRegex.exec(htmlContent)) !== null && figureInfo.length < maxFigures) {
+                figureInfo.push({
+                    figureLink: `https://www.ncbi.nlm.nih.gov${match[1]}`,
+                    imageUrl: `https://www.ncbi.nlm.nih.gov${match[2]}`
+                });
             }
 
-            figures[id] = figureUrls.map(url => `https://www.ncbi.nlm.nih.gov${url}`);
+            figures[id] = figureInfo;
 
         } catch (error) {
             console.error(`Failed to fetch figures for ID ${id}:`, error);

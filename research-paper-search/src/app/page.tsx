@@ -3,9 +3,14 @@
 import { useState } from 'react';
 import React from 'react';
 
+interface FigureInfo {
+  imageUrl: string;
+  figureLink: string;
+}
+
 interface SearchResults {
   summary: string;
-  figures: Record<string, string[]>;
+  figures: Record<string, FigureInfo[]>;
   error?: string;
 }
 
@@ -13,6 +18,7 @@ export default function Home() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<FigureInfo | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +35,14 @@ export default function Home() {
       setResults({ error: 'Failed to fetch results', summary: '', figures: {} });
     }
     setLoading(false);
+  };
+
+  const handleImageClick = (figureInfo: FigureInfo) => {
+    setSelectedImage(figureInfo);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedImage(null);
   };
 
   return (
@@ -66,16 +80,59 @@ export default function Home() {
               />
               <h2 className="mb-2">Figures</h2>
               <div className="row row-cols-2 g-4">
-                {Object.entries(results.figures).map(([id, urls]) => (
-                  urls.map((url, index) => (
+                {Object.entries(results.figures).flatMap(([id, figures]) => 
+                  figures.map((figure, index) => (
                     <div key={`${id}-${index}`} className="col">
-                      <img src={url} alt={`Figure from PMC${id}`} className="img-fluid" />
+                      <div className="card">
+                        <img 
+                          src={figure.imageUrl} 
+                          alt={`Figure ${index + 1} from PMC${id}`} 
+                          className="card-img-top" 
+                          onClick={() => handleImageClick(figure)}
+                          style={{ cursor: 'pointer', objectFit: 'contain', height: '200px' }}
+                        />
+                        <div className="card-body">
+                          <h5 className="card-title">Figure {index + 1}</h5>
+                          <a 
+                            href={figure.figureLink}
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="btn btn-primary btn-sm"
+                          >
+                            View Figure on PMC
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   ))
-                ))}
+                )}
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {selectedImage && (
+        <div className="modal" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Figure</h5>
+                <button type="button" className="btn-close" onClick={handleCloseModal}></button>
+              </div>
+              <div className="modal-body">
+                <img src={selectedImage.imageUrl} alt="Selected Figure" className="img-fluid" />
+                <a 
+                  href={selectedImage.figureLink}
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="btn btn-primary btn-sm mt-2"
+                >
+                  View on PMC
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </main>

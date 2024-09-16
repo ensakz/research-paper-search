@@ -1,4 +1,6 @@
-# A full-stack web application for searching and summarizing scientific research papers, built with TypeScript, Next.js, Express.js, and React.
+# Research Paper Search
+
+A full-stack web application for searching and summarizing scientific research papers, built with TypeScript, Next.js, Express.js, and React.
 
 ## Features
 
